@@ -3,7 +3,7 @@ import requests
 from collections import OrderedDict
 
 mcp = FastMCP("riot-mcp-http")
-api_key = "RGAPI-af46462a-be4b-41bf-9533-93a7a926df96"
+api_key = "RGAPI-aee69622-a808-4628-9100-b41351c5240d"
 requesturl_items = "https://ddragon.leagueoflegends.com/cdn/15.22.1/data/ko_KR/item.json"
 requesturl_champions = "https://ddragon.leagueoflegends.com/cdn/15.22.1/data/ko_KR/champion.json"
 requesturl_summoners = "https://ddragon.leagueoflegends.com/cdn/15.22.1/data/ko_KR/summoner.json"
@@ -57,80 +57,90 @@ def match_win_rate(puuid: str, game_type: str, game_count: int) -> dict:
 @mcp.tool
 def match_result(match_id: str, puuid: str) -> dict:
     """Get match result from Riot API using match ID and puuid"""
-    requesturl = "https://asia.api.riotgames.com/lol/match/v5/matches/"+match_id+"?api_key="+api_key
-    r = requests.get(requesturl)
-    r_items = requests.get(requesturl_items)
-    r_champions = requests.get(requesturl_champions)
-    r_summoners = requests.get(requesturl_summoners)
+    try:
+        requesturl = "https://asia.api.riotgames.com/lol/match/v5/matches/"+match_id+"?api_key="+api_key
+        r = requests.get(requesturl)
+        r_items = requests.get(requesturl_items)
+        r_champions = requests.get(requesturl_champions)
+        r_summoners = requests.get(requesturl_summoners)
 
-    # 몇번째 참가자인지 확인
-    participant_index = 0
-    for i in range(10):
-        if (r.json()['info']['participants'][i]['puuid']) == puuid:
-            participant_index = i
-            break
-    # 해당 참가자의 정보
-    r.json()['info']['participants'][participant_index]
+        if r.status_code != 200:
+            return {"error": f"Match not found: {r.status_code}"}
 
-    # 챔피언 한글 이름
-    champion_name = r.json()['info']['participants'][participant_index]['championName']
-    champion_name_ko = r_champions.json()['data'][champion_name]['name']
+        match_data = r.json()
+        
+        # 몇번째 참가자인지 확인
+        participant_index = -1
+        for i in range(len(match_data['info']['participants'])):
+            if match_data['info']['participants'][i]['puuid'] == puuid:
+                participant_index = i
+                break
+        
+        if participant_index == -1:
+            return {"error": "Participant not found in match"}
 
-    # 소환사 스펠 한글 이름
-    summoner1_id = r.json()['info']['participants'][participant_index]['summoner1Id']
-    summoner2_id = r.json()['info']['participants'][participant_index]['summoner2Id']
-    summoner1_name_ko = ""
-    summoner2_name_ko = ""
-    for key in r_summoners.json()['data'].keys():
-        if r_summoners.json()['data'][key]['key'] == str(summoner1_id):
-            summoner1_name_ko = r_summoners.json()['data'][key]['name']
-        if r_summoners.json()['data'][key]['key'] == str(summoner2_id):
-            summoner2_name_ko = r_summoners.json()['data'][key]['name']
+        participant = match_data['info']['participants'][participant_index]
 
-    # 아이템 한글 이름
-    item_names_ko = []
-    ward_name_ko = ""
-    for i in range(7):
-        item_id = str(r.json()['info']['participants'][participant_index]['item'+str(i)])
-        if i < 6:
-            if item_id != '0':
-                item_name_ko = r_items.json()['data'][item_id]['name']
-                item_names_ko.append(item_name_ko)
+        # 챔피언 한글 이름
+        champion_name = participant['championName']
+        champion_name_ko = r_champions.json()['data'].get(champion_name, {}).get('name', champion_name)
+
+        # 소환사 스펠 한글 이름
+        summoner1_id = participant['summoner1Id']
+        summoner2_id = participant['summoner2Id']
+        summoner1_name_ko = ""
+        summoner2_name_ko = ""
+        for key in r_summoners.json()['data'].keys():
+            if r_summoners.json()['data'][key]['key'] == str(summoner1_id):
+                summoner1_name_ko = r_summoners.json()['data'][key]['name']
+            if r_summoners.json()['data'][key]['key'] == str(summoner2_id):
+                summoner2_name_ko = r_summoners.json()['data'][key]['name']
+
+        # 아이템 한글 이름
+        item_names_ko = []
+        ward_name_ko = ""
+        for i in range(7):
+            item_id = str(participant.get('item'+str(i), '0'))
+            if i < 6:
+                if item_id != '0' and item_id in r_items.json()['data']:
+                    item_name_ko = r_items.json()['data'][item_id].get('name', item_id)
+                    item_names_ko.append(item_name_ko)
             else:
-                continue
-            
+                if item_id != '0' and item_id in r_items.json()['data']:
+                    ward_name_ko = r_items.json()['data'][item_id].get('name', item_id)
+
+        match_result = OrderedDict()
+        match_result["game_mode"] = match_data['info'].get('gameMode', 'Unknown')
+        match_result["game_duration_minutes"] = match_data['info']['gameDuration']//60
+        match_result["game_duration_seconds"] = match_data['info']['gameDuration']%60
+        match_result["match_id"] = match_data['metadata']['matchId']
+        match_result["summoner_name"] = participant.get('riotIdGameName', '') + "#" + participant.get('riotIdTagline', '')
+        match_result["champion"] = champion_name_ko
+        match_result["champion_level"] = participant['champLevel']
+        match_result["kills"] = participant['kills']
+        match_result["deaths"] = participant['deaths']
+        match_result["assists"] = participant['assists']
+        match_result["gold_earned"] = participant['goldEarned']
+        match_result["items"] = item_names_ko
+        match_result["ward"] = ward_name_ko
+        match_result["spells"] = summoner1_name_ko + "(D), " + summoner2_name_ko + "(F)"
+        
+        team_id = 0 if participant['teamId'] == 100 else 1
+        team_kills = match_data['info']['teams'][team_id]['objectives']['champion']['kills']
+        if team_kills > 0:
+            match_result["kill_participation_rate"] = round((participant['kills'] + participant['assists']) / team_kills, 2)
         else:
-            ward_name_ko = r_items.json()['data'][item_id]['name']
+            match_result["kill_participation_rate"] = 0
+        
+        match_result["win"] = bool(participant['win'])
+        match_result["total_minions_killed"] = participant['totalMinionsKilled']
+        match_result["neutral_minions_killed"] = participant['neutralMinionsKilled']
+        match_result["totalDamageDealtToChampions"] = participant['totalDamageDealtToChampions']
+        match_result["totalDamageTaken"] = participant['totalDamageTaken']
+        match_result["wardsPlaced"] = participant['wardsPlaced']
+        match_result["wardsKilled"] = participant['wardsKilled']
+        match_result["individualPosition"] = participant.get('individualPosition', 'Unknown')
 
-    match_result = OrderedDict()
-    match_result["game_mode"] = r.json()['info']['gameMode']
-    match_result["game_duration_minutes"] = r.json()['info']['gameDuration']//60
-    match_result["game_duration_seconds"] = r.json()['info']['gameDuration']%60
-    match_result["match_id"] = r.json()['metadata']['matchId']
-    match_result["summoner_name"] = r.json()['info']['participants'][participant_index]['riotIdGameName'] + "#" + r.json()['info']['participants'][participant_index]['riotIdTagline']
-    match_result["champion"] = champion_name_ko
-    match_result["champion_level"] = r.json()['info']['participants'][participant_index]['champLevel']
-    match_result["kills"] = r.json()['info']['participants'][participant_index]['kills']
-    match_result["deaths"] = r.json()['info']['participants'][participant_index]['deaths']
-    match_result["assists"] = r.json()['info']['participants'][participant_index]['assists']
-    match_result["gold_earned"] = r.json()['info']['participants'][participant_index]['goldEarned']
-    match_result["items"] = item_names_ko
-    match_result["ward"] = ward_name_ko
-    match_result["spells"] = summoner1_name_ko + "(D), " + summoner2_name_ko + "(F)"
-    match_result["kill_participation_rate"] = round((r.json()['info']['participants'][participant_index]['kills'] +
-                                    r.json()['info']['participants'][participant_index]['assists']) /
-                                   (r.json()['info']['teams'][r.json()['info']['participants'][participant_index]['teamId']//100]['objectives']['champion']['kills']
-                                    ), 2)
-    if r.json()['info']['participants'][participant_index]['win']:
-        match_result["win"] = True
-    else:
-        match_result["win"] = False
-    match_result["total_minions_killed"] = r.json()['info']['participants'][participant_index]['totalMinionsKilled']
-    match_result["neutral_minions_killed"] = r.json()['info']['participants'][participant_index]['neutralMinionsKilled']
-    match_result["totalDamageDealtToChampions"] = r.json()['info']['participants'][participant_index]['totalDamageDealtToChampions']
-    match_result["totalDamageTaken"] = r.json()['info']['participants'][participant_index]['totalDamageTaken']
-    match_result["wardsPlaced"] = r.json()['info']['participants'][participant_index]['wardsPlaced']
-    match_result["wardsKilled"] = r.json()['info']['participants'][participant_index]['wardsKilled']
-    match_result["individualPosition"] = r.json()['info']['participants'][participant_index]['individualPosition']
-
-    return match_result
+        return match_result
+    except Exception as e:
+        return {"error": str(e)}
