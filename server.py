@@ -3,10 +3,10 @@ import requests
 from collections import OrderedDict
 
 mcp = FastMCP("riot-mcp-http")
-api_key = "RGAPI-aee69622-a808-4628-9100-b41351c5240d"
-requesturl_items = "https://ddragon.leagueoflegends.com/cdn/15.22.1/data/ko_KR/item.json"
-requesturl_champions = "https://ddragon.leagueoflegends.com/cdn/15.22.1/data/ko_KR/champion.json"
-requesturl_summoners = "https://ddragon.leagueoflegends.com/cdn/15.22.1/data/ko_KR/summoner.json"
+api_key = "RGAPI-70024e4e-fa5b-400e-a867-d1baf14faa4b"
+requesturl_items = "https://ddragon.leagueoflegends.com/cdn/16.1.1/data/ko_KR/item.json"
+requesturl_champions = "https://ddragon.leagueoflegends.com/cdn/16.1.1/data/ko_KR/champion.json"
+requesturl_summoners = "https://ddragon.leagueoflegends.com/cdn/16.1.1/data/ko_KR/summoner.json"
 
 @mcp.tool
 def get_puuid(user_name: str, user_tag: str) -> str:
@@ -14,7 +14,10 @@ def get_puuid(user_name: str, user_tag: str) -> str:
     requesturl = "https://asia.api.riotgames.com/riot/account/v1/accounts/by-riot-id/"+user_name+"/"+user_tag+"?api_key="+api_key
     r = requests.get(requesturl)
     
-    return r.json()['puuid']
+    if r.status_code == 200:
+        return r.json()['puuid']
+    else:
+        return f"Error: {r.status_code}"
 
 @mcp.tool
 def recent_matches(puuid: str, game_type: str, game_count: int) -> list:
