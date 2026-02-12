@@ -3,7 +3,7 @@ import requests
 from collections import OrderedDict
 
 mcp = FastMCP("riot-mcp-http")
-api_key = "RGAPI-70024e4e-fa5b-400e-a867-d1baf14faa4b"
+api_key = "RGAPI-80dd850f-2a17-403a-9159-47c74e0cf855"
 requesturl_items = "https://ddragon.leagueoflegends.com/cdn/16.1.1/data/ko_KR/item.json"
 requesturl_champions = "https://ddragon.leagueoflegends.com/cdn/16.1.1/data/ko_KR/champion.json"
 requesturl_summoners = "https://ddragon.leagueoflegends.com/cdn/16.1.1/data/ko_KR/summoner.json"
@@ -147,3 +147,4 @@ def match_result(match_id: str, puuid: str) -> dict:
         return match_result
     except Exception as e:
         return {"error": str(e)}
+
