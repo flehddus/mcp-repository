@@ -3,7 +3,7 @@ import requests
 from collections import OrderedDict
 
 mcp = FastMCP("riot-mcp-http")
-api_key = "RGAPI-80dd850f-2a17-403a-9159-47c74e0cf855"
+api_key = "RGAPI-833b73c9-4142-4118-b2d6-4d2e2bb812c0"
 requesturl_items = "https://ddragon.leagueoflegends.com/cdn/16.1.1/data/ko_KR/item.json"
 requesturl_champions = "https://ddragon.leagueoflegends.com/cdn/16.1.1/data/ko_KR/champion.json"
 requesturl_summoners = "https://ddragon.leagueoflegends.com/cdn/16.1.1/data/ko_KR/summoner.json"
